@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN_KEUANGAN
+  MANAJER
+  VIEWER
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum BudgetPeriod {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  name          String
+  role          Role     @default(VIEWER)
+  isActive      Boolean  @default(true)
+  lastLoginAt   DateTime?
+  lastLoginIp   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  transactions  Transaction[]
+  auditLogs     AuditLog[]
+  budgets       Budget[]
+
+  @@map("users")
+}
+
+model Category {
+  id            String          @id @default(cuid())
+  name          String
+  type          TransactionType
+  parentId      String?
+  parent        Category?       @relation("SubCategories", fields: [parentId], references: [id])
+  children      Category[]      @relation("SubCategories")
+  icon          String?
+  color         String?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  transactions  Transaction[]
+  budgets       Budget[]
+
+  @@unique([name, type, parentId])
+  @@map("categories")
+}
+
+model Transaction {
+  id              String          @id @default(cuid())
+  type            TransactionType
+  amount          Decimal         @db.Decimal(15, 2)
+  date            DateTime
+  description     String?
+  reference       String?
+  paymentMethod   String?
+  tags            String[]
+  attachmentUrl   String?
+  isVoided        Boolean         @default(false)
+  voidReason      String?
+
+  categoryId      String
+  category        Category        @relation(fields: [categoryId], references: [id])
+
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([date])
+  @@index([type])
+  @@index([categoryId])
+  @@map("transactions")
+}
+
+model Budget {
+  id            String       @id @default(cuid())
+  amount        Decimal      @db.Decimal(15, 2)
+  period        BudgetPeriod
+  startDate     DateTime
+  endDate       DateTime
+
+  categoryId    String
+  category      Category     @relation(fields: [categoryId], references: [id])
+
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([categoryId, period, startDate])
+  @@map("budgets")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  entity      String
+  entityId    String
+  oldValue    Json?
+  newValue    Json?
+  ipAddress   String?
+  userAgent   String?
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  createdAt   DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId])
+  @@map("audit_logs")
+}
